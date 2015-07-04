@@ -1,0 +1,74 @@
+﻿@model MobileQA.UserInterface.Models.TrackingEventList
+
+@{
+    ViewBag.Title = "TrackingEvent";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section DataTables{
+    <link rel="stylesheet" type="text/css" href="~/DataTables-1.10.4/media/css/jquery.dataTables.css">
+    <script type="text/javascript" charset="utf8" src="~/DataTables-1.10.4/media/js/jquery.dataTables.js"></script>
+
+    <script type="text/javascript" class="init">
+        var table = $(document).ready(function () {
+            $('#list').DataTable({
+                fnRowCallback: function (nRow, aData, iDisplayIndex, iDisplayIndexFull) {
+                    $('td', nRow).find('a').on('click', function () {
+                        var cells = [];
+                        cells = nRow.getElementsByTagName("td");
+                        document.getElementById("id").value = cells[0].innerHTML.trim();
+                        $("#idForm").submit();
+                    });
+                },
+                "order": [[2, "desc"]],
+                "iDisplayLength": 15,
+                "bAutoWidth": false
+            });
+        });
+    </script>   
+}
+
+<h2>List</h2>
+
+@Html.ActionLink("Home", "Index", "Home", null, null)
+@Html.ActionLink("Log New Event", "TrackingEvent", "Log", null, null)
+@using (Html.BeginForm("Index", "TrackingEvent", FormMethod.Post, new { id = "idForm", enctype = "multipart/form-data" }))
+{
+    @Html.HiddenFor(model => model.id)
+}
+
+<div style="width:380px">
+    <br />
+    <table id="list" style="width:100%">
+        <thead>
+            <tr>
+                <th style="display: none">
+                    Id
+                </th>
+                <th align="center">
+                    parcelNum
+                </th>
+                <th align="center">
+                    dateTime
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (var i = 0; i < Model.items.Count; i++)
+            {
+                <tr>
+                    <td style="display: none">
+                        @Model.items[i].Id
+                    </td>
+                    <td align="center">
+                        @Model.items[i].parcelNum
+                    </td>
+                    <td align="center">
+                        <a href="#" onclick='return false;'>@Model.items[i].dateTime</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+

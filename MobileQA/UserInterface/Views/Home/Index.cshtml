@@ -1,0 +1,7 @@
+﻿@{
+    ViewBag.Title = "Home";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<h1>Home</h1>
+@Html.ActionLink("Log New Event", "TrackingEvent", "Log", null, null)
+@Html.ActionLink("List All Events", "Index", "TrackingEvent", null, null)

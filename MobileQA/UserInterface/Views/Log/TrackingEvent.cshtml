@@ -1,0 +1,646 @@
+﻿@model MobileQA.UserInterface.Models.TrackingEvent
+
+@{
+    ViewBag.Title = "TrackingEvent";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section ImageGallery
+{
+    <style>
+        #imageGallery {
+            overflow: auto;
+            position: static;
+            background-color: #333;
+            width: 193px;
+            height: auto;
+            display: none;
+            padding: 7px 7px 7px 7px;
+        }
+
+            #imageGallery li {
+                margin: 4px;
+                overflow: hidden;
+            }
+
+                #imageGallery li div {
+                    display: inline-block;
+                }
+    </style>
+}
+
+@using (Html.BeginForm("TrackingEvent", "Log", FormMethod.Post, new { id = "eventForm", enctype = "multipart/form-data" }))
+{
+    @Html.AntiForgeryToken()
+    @Html.ValidationSummary(true)
+
+    <fieldset>
+        <legend>TrackingEvent</legend><br />
+
+        <div id="parcelNumDiv">
+            <label id="parcelNumLabel">Enter Tracking No.:</label><br />
+            @Html.EditorFor(model => model.parcelNum)
+            @Html.ValidationMessageFor(model => model.parcelNum)
+            <br />
+        </div>
+
+        <div id="videoDiv">
+            <video id="video" autoplay hidden></video>
+            <div id="imageFileInputDiv" style="display:none">
+                @Html.TextBoxFor(m => m.File, new { type = "file" })
+                <br />
+                @Html.TextBoxFor(m => m.File_2, new { type = "file" })
+                <br />
+                @Html.TextBoxFor(m => m.File_3, new { type = "file" })
+                <br />
+                <button id="addNewButton" type="button" style="display:none">Add More Photos</button>
+            </div>
+            @Html.HiddenFor(model => model.videoFrameBase64)
+            @Html.HiddenFor(model => model.videoFrameBase64_2)
+            @Html.HiddenFor(model => model.videoFrameBase64_3)
+        </div>
+
+        <button id="nextButton" type="button">Next</button>
+        <div id="snapDiv" style="display:none"><button id="snapButton" type="button">Snap</button><br /></div>
+
+        <div id="imagesDiv">
+            <div id="fileReaderWarning" style="display:none"><br /><label>File Reader is not supported in your browser. Images will not display.</label><br /></div>
+            <div id="imageGallery">
+                <ul>
+                    <li>
+                        <div style="position:relative">
+                            <img id="screenshot1" src="" alt="" class="screenshot" style="display:none" />
+                            <button id="deleteButton1" class="deleteButton" type="button" style="display:none;width:20px;height:20px;position:absolute;bottom:0px;right:0px;border:none;background: url(../Content/images/delete.png);background-size:20px"></button>
+                        </div>
+                    </li>
+                    <li>
+                        <div style="position:relative">
+                            <img id="screenshot2" src="" alt="" class="screenshot" style="display:none" />
+                            <button id="deleteButton2" class="deleteButton" type="button" style="display:none;width:20px;height:20px;position:absolute;bottom:0px;right:0px;border:none;background: url(../Content/images/delete.png);background-size:20px"></button>
+                        </div>
+                    </li>
+                    <li>
+                        <div style="position:relative">
+                            <img id="screenshot3" src="" alt="" class="screenshot" style="display:none" />
+                            <button id="deleteButton3" class="deleteButton" type="button" style="display:none;width:20px;height:20px;position:absolute;bottom:0px;right:0px;border:none;background: url(../Content/images/delete.png);background-size:20px"></button>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            <br />
+            <canvas id="canvas" width="600" height="600"></canvas>
+            <br class="imageBreaks" style="display:none" />
+        </div>
+
+        <div id="mapAddressDiv">
+            <label id="addressLabel" style="display:none; clear:both">Obtaining address ...</label><br />
+            <div id="addressDiv" style="display:none; clear:both">
+                @Html.HiddenFor(model => model.latitude)
+                @Html.HiddenFor(model => model.longitude)
+                @Html.HiddenFor(model => model.accuracy)
+                @Html.EditorFor(model => model.address)
+                @Html.ValidationMessageFor(model => model.address)
+                <br />
+                <button id="mapButton" type="button">Show Map</button>
+            </div>
+            <div id="googleMap" style="display:none;width:500px;height:380px;"></div>
+            <div id="commentsDiv" style="display:none">
+                <hr />
+                <label id="commentLabel">Comments:</label><br />
+                @Html.TextAreaFor(model => model.comments)
+                <br />
+            </div>
+        </div>
+
+        <div id="barcodeVideoDiv">
+            <button id="barcodeButton" type="button" style="display:none">Show barcode</button>
+            <div id="barcodeDiv" style="width:320px;height:240px;display:none;">
+                <video id="barcodeVideo" style="width:320px;height:240px" autoplay></video>
+                <div id="inner" style="position: relative;margin: 0 auto;top: -243px;width: 260px;height: 180px;border: 30px solid rgba(64,64,64, 0.5);"></div>
+                <div id="redLine" style="position: relative;margin: 0 auto;top: -360px;width: 320px;height: 2px;background-color: rgba(255, 0, 0, 0.3);"></div>
+            </div>
+            <canvas id="barcodeCanvas" style="display:none;"></canvas>
+        </div>
+
+        <label id="submitLabel" style="display:none; color:red;">At least 2 photos required.</label><br />
+        <input id="submitButton" type="submit" value="Save" style="display:none" />
+        @Html.HiddenFor(model => model.hasGetUserMedia)
+    </fieldset>
+}
+
+@Html.ActionLink("Home", "Index", "Home", null, null)
+@Html.ActionLink("List All Events", "Index", "TrackingEvent", null, null)
+
+
+<script src="http://maps.googleapis.com/maps/api/js"></script>
+<script>
+    canvas.style.display = "none";
+
+    window.addEventListener("DOMContentLoaded", function () {
+        
+        var map, localStream, worker, takeSnapshot, imageDataURL,
+            hasGetUserMedia = document.getElementById("hasGetUserMedia"),
+            imgIndex = 0,
+            noOfImages = 0,
+            image1 = document.getElementById("screenshot1"),
+            image2 = document.getElementById("screenshot2"),
+            image3 = document.getElementById("screenshot3"),
+            images = document.getElementsByClassName("screenshot"),
+            imageBreaks = document.getElementsByClassName("imageBreaks"),
+            imageGallery = document.getElementById("imageGallery"),
+            deleteButton1 = document.getElementById("deleteButton1"),
+            deleteButton2 = document.getElementById("deleteButton2"),
+            deleteButton3 = document.getElementById("deleteButton3"),
+            deleteButtons = document.getElementsByClassName("deleteButton"),
+            imageFileInput = document.getElementById("File"),
+            imageFileInput_2 = document.getElementById("File_2"),
+            imageFileInput_3 = document.getElementById("File_3"),
+            imageFileInputDiv = document.getElementById("imageFileInputDiv"),
+            parcelNumDiv = document.getElementById("parcelNumDiv"),
+            commentsDiv = document.getElementById("commentsDiv"),
+            snapDiv = document.getElementById("snapDiv"),
+            addressDiv = document.getElementById("addressDiv"),
+            addressLabel = document.getElementById("addressLabel"),
+            nextButton = document.getElementById("nextButton"),
+            snapButton = document.getElementById("snapButton"),
+            submitButton = document.getElementById("submitButton"),
+            addNewButton = document.getElementById("addNewButton"),
+            mapButton = document.getElementById("mapButton"),
+            barcodeDiv = document.getElementById("barcodeDiv"),
+            barcodeButton = document.getElementById("barcodeButton"),
+            canvas = document.getElementById("canvas"),
+            context = canvas.getContext("2d"),
+            videoBase64_1 = document.getElementById("videoFrameBase64"),
+            videoBase64_2 = document.getElementById("videoFrameBase64_2"),
+            videoBase64_3 = document.getElementById("videoFrameBase64_3"),
+            video = document.getElementById("video"),
+            videoObj = { "video": true },
+            errBack = function (error) {
+                console.log("Video capture error: ", error.code);
+            };
+
+        initialiseUI()
+        setVideoProperties();
+        
+        nextButton.addEventListener("click", function () {
+            if ($("form").valid()) {
+                if (navigator.getUserMedia || (navigator.webkitGetUserMedia && window.chrome) || navigator.mozGetUserMedia) {
+                    stopBarcode();
+                    barcodeButton.style.display = "none";
+                }
+                parcelNumDiv.style.display = "none";
+                nextButton.style.display = "none";
+
+                if (navigator.getUserMedia) {
+                    navigator.getUserMedia(videoObj, function (stream) {
+                        video.src = stream;
+                        showVideo();
+                    }, errBack);
+                } else if (navigator.webkitGetUserMedia && window.chrome) {
+                    navigator.webkitGetUserMedia(videoObj, function (stream) {
+                        video.src = window.webkitURL.createObjectURL(stream);
+                        showVideo();
+                    }, errBack);
+                } else if (navigator.mozGetUserMedia) {
+                    navigator.mozGetUserMedia(videoObj, function (stream) {
+                        video.src = window.URL.createObjectURL(stream);
+                        showVideo();
+                    }, errBack);
+                } else {
+                    hasGetUserMedia.value = false;
+                    getGeolocation();
+                    useFileInput();
+
+                    commentsDiv.style.display = "inline";
+                    submitButton.style.display = "inline";
+                }
+            }
+        });
+
+        snapButton.addEventListener("click", function () {
+            getGeolocation();
+
+            context.canvas.width = video.videoWidth;
+            context.canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+            imageDataURL = canvas.toDataURL('image/jpg');
+
+            images[imgIndex].src = imageDataURL;
+            displayImage();
+
+            var imageData = imageDataURL.replace('data:image/png;base64,', '');
+            switch (imgIndex) {
+                case 0:
+                    videoBase64_1.value = imageData;
+                    break;
+                case 1:
+                    videoBase64_2.value = imageData;
+                    break;
+                case 2:
+                    videoBase64_3.value = imageData;
+                    break;
+                default:
+                    videoBase64_1.value = imageData;
+                    break;
+            }
+                        
+            setImgIndex();
+            noOfImages++;
+            updateImgUI();
+        });
+
+        function setVideoProperties() {
+            if (!(typeof MediaStreamTrack === 'undefined') && MediaStreamTrack.getSources) {
+                MediaStreamTrack.getSources(function (sourceInfos) {
+                    var videoSource = null;
+                    for (var i = 0; i < sourceInfos.length; ++i) {
+                        var sourceInfo = sourceInfos[i];
+
+                        if (sourceInfo.kind === 'video' && sourceInfo.facing === 'environment')
+                            videoSource = sourceInfo.id;
+                    }
+
+                    videoObj = {
+                        video: {
+                            optional: [{
+                                sourceId: videoSource,
+                            }],
+                            mandatory: {
+                                maxWidth: 320,
+                                maxHeight: 240
+                            }
+                        }
+                    };
+                });
+            }
+        }
+
+        function getGeolocation() {
+            if (address.value == "") {
+                addressLabel.style.display = "inline";
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(success, error);
+                } else {
+                    error('Location not supported');
+                }
+            }
+        }
+
+        function success(position) {
+            if (position.coords.accuracy < 600) {
+                latitude.value = position.coords.latitude;
+                longitude.value = position.coords.longitude;
+                accuracy.value = position.coords.accuracy;
+                getAddress(latitude.value, longitude.value);
+            } else {
+                error();
+            }
+        }
+
+        function error(msg) {
+            addressLabel.innerHTML = typeof msg === 'string' ? msg : "Failed to get geolocation. Enter address:";
+            addressDiv.style.display = "inline";
+            mapButton.style.display = "none";
+        }
+
+        function getAddress(latitude, longitude) {
+            var latLng = new google.maps.LatLng(latitude, longitude);
+            var geocoder = new google.maps.Geocoder();
+
+            geocoder.geocode({ 'latLng': latLng }, function (data, status) {
+                if (status == google.maps.GeocoderStatus.OK) {
+                    address.value = data[1].formatted_address;
+                }
+            })
+            addressLabel.innerHTML = "Address:";
+            addressDiv.style.display = "inline";
+        }
+
+        function initializeMap() {
+            var latLng = new google.maps.LatLng(latitude.value, longitude.value);
+            if (latitude.value && longitude.value && accuracy.value < 600) {
+                var mapProp = {
+                    center: latLng,
+                    zoom: 18,
+                    mapTypeId: google.maps.MapTypeId.ROADMAP
+                };
+                map = new google.maps.Map(document.getElementById("googleMap"), mapProp);
+                var marker = new google.maps.Marker({
+                    position: latLng,
+                    map: map,
+                    draggable: true
+                });
+                google.maps.event.addListener(marker, 'dragend', function (event) {
+                    latitude.value = this.getPosition().lat();
+                    longitude.value = this.getPosition().lng();
+                    getAddress(latitude.value, longitude.value);
+                });
+            }
+        }
+
+        barcodeButton.addEventListener("click", function () {
+            if (barcodeDiv.style.display == "none") {
+                barcodeButton.innerHTML = "Hide barcode";
+                runBarcode();
+            } else {
+                barcodeButton.innerHTML = "Show barcode";
+                stopBarcode();
+            }
+        });
+
+        function runBarcode() {
+            barcodeDiv.style.display = "block";
+
+            var barcodeVideo = document.getElementById("barcodeVideo");
+            var barcodeCanvas = document.getElementById("barcodeCanvas");
+            var localMediaStream = null;
+            setVideoProperties();
+
+            worker = new Worker("../Scripts/zbar-processor.js");
+            worker.onmessage = function (event) {
+                if (event.data.length == 0) return;
+                var d = event.data[0];
+                document.getElementById("parcelNum").value = d[2] + ' (' + d[0] + ')';
+            };
+
+            function snapshot() {
+                if (localMediaStream === null) return;
+                if (document.getElementById("inner").style.width != barcodeVideo.videoWidth + "px") {
+                    document.getElementById("inner").style.width = (barcodeVideo.videoWidth - 60) + "px";
+                    document.getElementById("redLine").style.width = barcodeVideo.videoWidth + "px";
+                }
+                var k = (320 + 160) / (barcodeVideo.videoWidth + barcodeVideo.videoHeight);
+                barcodeCanvas.width = Math.ceil(barcodeVideo.videoWidth * k);
+                barcodeCanvas.height = Math.ceil(barcodeVideo.videoHeight * k);
+                var barcodeContext = barcodeCanvas.getContext('2d');
+                barcodeContext.drawImage(barcodeVideo, 0, 0, barcodeVideo.videoWidth, barcodeVideo.videoHeight,
+                              0, 0, barcodeCanvas.width, barcodeCanvas.height);
+
+                var data = barcodeContext.getImageData(0, 0, barcodeCanvas.width, barcodeCanvas.height);
+                worker.postMessage(data);
+            }
+
+            takeSnapshot = setInterval(snapshot, 500);
+
+            if (navigator.getUserMedia) {
+                navigator.getUserMedia(videoObj,
+                                       function (stream) {
+                                           barcodeVideo.src = stream;
+                                           localMediaStream = true;
+                                           localStream = stream;
+                                       }, errBack);
+            } else if (navigator.webkitGetUserMedia && window.chrome) {
+                navigator.webkitGetUserMedia(videoObj,
+                                       function (stream) {
+                                           barcodeVideo.src = window.webkitURL.createObjectURL(stream);
+                                           localMediaStream = true;
+                                           localStream = stream;
+                                       }, errBack);
+            } else if (navigator.mozGetUserMedia) {
+                navigator.mozGetUserMedia(videoObj,
+                                       function (stream) {
+                                           barcodeVideo.src = window.URL.createObjectURL(stream);
+                                           localMediaStream = true;
+                                           localStream = stream;
+                                       }, errBack);
+            }
+        }
+
+        function stopBarcode() {
+            barcodeDiv.style.display = "none";
+            if (worker) {
+                worker.terminate();
+                clearInterval(takeSnapshot);
+                localStream.stop();
+            }
+        }
+
+        function showVideo() {
+            hasGetUserMedia.value = true;
+            video.style.display = "inline";
+            snapDiv.style.display = "inline";
+        }
+
+        function initialiseUI() {
+            address.style.width = "500px";
+            parcelNum.style.width = "300px";
+
+            if (navigator.getUserMedia || (navigator.webkitGetUserMedia && window.chrome) || navigator.mozGetUserMedia)
+                barcodeButton.style.display = "inline";
+
+            imageFileInput_2.style.display = "none";
+            imageFileInput_3.style.display = "none";
+            document.querySelector('form').onkeypress = checkEnterKey;
+            google.maps.event.addDomListener(document.getElementById('mapButton'), 'click', initializeMap);
+        }
+
+        addNewButton.addEventListener("click", function () {
+            imageFileInput_3.style.display = "inline";
+            addNewButton.style.display = "none";
+            useFileInput();
+        });
+
+        deleteButton1.addEventListener("click", function () {
+            if (hasGetUserMedia.value == "true") {
+                var deleteImage = confirm("Do you want to delete the image?");
+                if (deleteImage) {
+                    image1.style.display = "none";
+                    image1.src = "";
+                    videoBase64_1.value = "";
+                    imgIndex = 0;
+                    noOfImages--;
+                    updateImgUI();
+                    deleteButton1.style.display = "none";
+                    if (noOfImages == 0)
+                        imageGallery.style.display = "none";
+                }
+            }
+        });
+
+        deleteButton2.addEventListener("click", function () {
+            if (hasGetUserMedia.value == "true") {
+                var deleteImage = confirm("Do you want to delete the image?");
+                if (deleteImage) {
+                    image2.style.display = "none";
+                    image2.src = "";
+                    videoBase64_2.value = "";
+                    imgIndex = 1;
+                    noOfImages--;
+                    updateImgUI();
+                    deleteButton2.style.display = "none";
+                    if (noOfImages == 0)
+                        imageGallery.style.display = "none";
+                }
+            }
+        });
+
+        deleteButton3.addEventListener("click", function () {
+            if (hasGetUserMedia.value == "true") {
+                var deleteImage = confirm("Do you want to delete the image?");
+                if (deleteImage) {
+                    image3.style.display = "none";
+                    image3.src = "";
+                    videoBase64_3.value = "";
+                    imgIndex = 2;
+                    noOfImages--;
+                    updateImgUI();
+                    deleteButton3.style.display = "none";
+                    if (noOfImages == 0)
+                        imageGallery.style.display = "none";
+                }
+            }
+        });
+
+        mapButton.addEventListener("click", function () {
+            var googleMap = document.getElementById("googleMap");
+            if (googleMap.style.display == "block") {
+                mapButton.innerHTML = "Show Map";
+                googleMap.style.display = "none";
+            }
+            else {
+                mapButton.innerHTML = "Hide Map";
+                googleMap.style.display = "block";
+                google.maps.event.trigger(map, "resize");
+                var latLng = new google.maps.LatLng(latitude.value, longitude.value);
+                map.setCenter(latLng);
+            }
+        });
+
+        $("#eventForm").submit(function (e) {
+            if (hasGetUserMedia.value == "true" && noOfImages == 2) {
+                if (videoBase64_1.value == "" && videoBase64_3 != "") {
+                    videoBase64_1.value = videoBase64_3.value;
+                    videoBase64_3.value = "";
+                } else if (videoBase64_2.value == "" && videoBase64_3 != "") {
+                    videoBase64_2.value = videoBase64_3.value;
+                    videoBase64_3.value = "";
+                }
+            }
+        });
+
+        function useFileInput() {
+            imageFileInputDiv.style.display = "inline";
+            imageFileInput.style.display = "inline";
+
+            if (imageFileInput && image1)
+                displayImgFile(imageFileInput, image1);
+            if (imageFileInput_2 && image2)
+                displayImgFile(imageFileInput_2, image2);
+            if (imageFileInput_3 && image3)
+                displayImgFile(imageFileInput_3, image3);
+        }
+
+        function displayImgFile(imageInput, image) {
+            imageInput.onchange = function (event) {
+                noOfImages++;
+                imageFileInput_2.style.display = "inline";
+                if (noOfImages == 2)
+                    addNewButton.style.display = "inline";
+
+                var files = event.target.files,
+                            file;
+                if (files && files.length > 0) {
+                    file = files[0];
+                    try {
+                        image.style.display = "inline";
+                        var fileReader = new FileReader();
+                        fileReader.onload = function (event) {
+                            image.src = event.target.result;
+                            image.style.height = '100px';
+                            image.style.width = 'auto';
+                        };
+                        fileReader.readAsDataURL(file);
+                        imageGallery.style.display = "block";
+                    }
+                    catch (e) {
+                        document.getElementById("fileReaderWarning").style.display = "inline";
+                        var error = document.querySelector("#error");
+                        if (error) {
+                            error.innerHTML = "FileReader is not supported. Image will not display.";
+                        }
+                    }
+                }
+            };
+        }
+
+        function displayImage() {
+            imageGallery.style.width = (video.videoWidth - 14) + "px";
+            imageGallery.style.display = "block";
+            images[imgIndex].style.display = "inline";
+            images[imgIndex].style.height = '100px';
+            images[imgIndex].style.width = 'auto';
+            deleteButtons[imgIndex].style.display = "inline";
+
+            for (var i = 0; i < imageBreaks.length; ++i)
+                imageBreaks[i].style.display = "inline";
+            commentsDiv.style.display = "inline";
+        }
+
+        function setImgIndex() {
+            if (image1.style.display == "inline" && image2.style.display == "inline") {
+                imgIndex = 2;
+            }
+            else if (image1.style.display == "inline" && image3.style.display == "inline") {
+                imgIndex = 1;
+            }
+            else if (image2.style.display == "inline" && image3.style.display == "inline") {
+                imgIndex = 0;
+            }
+            else if (noOfImages < 2 && imgIndex < 2 && images[imgIndex + 1].style.display == "inline") {
+                imgIndex += 2;
+            }
+            else {
+                imgIndex++;
+            }
+
+            if (imgIndex > 2)
+                imgIndex = 0;
+        }
+
+        function updateImgUI() {
+            if (noOfImages >= images.length) {
+                snapButton.style.display = "none";
+            } else {
+                snapButton.style.display = "inline";
+            }
+
+            if (noOfImages >= 2) {
+                submitButton.style.display = "inline";
+                document.getElementById("submitLabel").style.display = "none";
+            } else {
+                submitButton.style.display = "none";
+                document.getElementById("submitLabel").style.display = "inline";
+            }
+        }
+
+        function checkEnterKey(e) {
+            e = e || event;
+            var txtArea = /textarea/i.test((e.target || e.srcElement).tagName);
+            return txtArea || (e.keyCode || e.which || e.charCode || 0) !== 13;
+        }
+
+    }, false);
+
+</script>
+
+@section Scripts {
+    @Scripts.Render("~/bundles/jqueryval")
+}
+
+@section ThumbnailScrollerScripts{
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+    <script>window.jQuery || document.write('<script src="../js/minified/jquery-1.11.0.min.js"><\/script>')</script>
+    <script src="../Scripts/jquery.mThumbnailScroller.js"></script>
+    <script>
+        (function ($) {
+            $(window).load(function () {
+                $("#imageGallery").mThumbnailScroller({
+                    onInit: function () {
+                        var $this = $(this);
+                    },
+                    theme: "hover-classic"
+                });
+            });
+        })(jQuery);
+    </script>
+}

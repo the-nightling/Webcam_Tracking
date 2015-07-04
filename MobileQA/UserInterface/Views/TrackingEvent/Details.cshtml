@@ -1,0 +1,70 @@
+﻿@model MobileQA.API.Domain.TrackingEvent
+
+@{
+    ViewBag.Title = "Details";
+}
+
+@{
+    var imgSrc1 = "";
+    var imgSrc2 = "";
+    var imgSrc3 = "";
+    var base64String = "";
+    if (Model.imgData1 != null)
+    {
+        base64String = Convert.ToBase64String(Model.imgData1);
+        imgSrc1 = String.Format("data:image/png;base64,{0}", base64String);
+    } else {
+        imgSrc1 = "";
+    }
+    if (Model.imgData2 != null)
+    {
+        base64String = Convert.ToBase64String(Model.imgData2);
+        imgSrc2 = String.Format("data:image/png;base64,{0}", base64String);
+    } else {
+        imgSrc2 = "";
+    }
+    if (Model.imgData3 != null)
+    {
+        base64String = Convert.ToBase64String(Model.imgData3);
+        imgSrc3 = String.Format("data:image/png;base64,{0}", base64String);
+    } else {
+        imgSrc3 = "";
+    }
+}
+
+<h2>Details</h2>
+
+@Html.ActionLink("Home", "Index", "Home", null, null)
+@Html.ActionLink("Log New Event", "TrackingEvent", "Log", null, null)
+@Html.ActionLink("List All Events", "Index", "TrackingEvent", null, null)
+
+<p><strong>Parcel number:</strong> @Model.parcelNum</p>
+<p><strong>Address:</strong> @Model.address</p>
+<p><strong>Longitude:</strong> @Model.longitude</p>
+<p><strong>Latitude:</strong> @Model.latitude</p>
+<p><strong>Accuracy:</strong> @Model.accuracy</p>
+<p><strong>Time & Date:</strong> @Model.dateTime</p>
+<p><strong>Comments:</strong> @Model.comments</p>
+
+<table id="imageTable">
+    <tr>
+        <td>
+            <a href="@imgSrc1"><img id="screenshot1" src="@imgSrc1" alt="" class="screenshot" style="width:500px;height:auto" /></a>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <a href="@imgSrc2"><img id="screenshot2" src="@imgSrc2" alt="" class="screenshot" style="width:500px;height:auto" /></a>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <a href="@imgSrc3"><img id="screenshot3" src="@imgSrc3" alt="" class="screenshot" style="width:500px;height:auto" /></a>
+        </td>
+    </tr>
+</table>
+
+<script>
+    if (document.getElementById("screenshot3").src.length < 100)
+        document.getElementById("screenshot3").style.display = "none";
+</script>
