@@ -1,0 +1,195 @@
+<!-- 
+    To do:
+    - SSL
+    - form
+    - fix ios safari layout
+    -->
+
+<html>
+<body>
+    <h1>Webcam Capture</h1>
+
+    <label id="newEventLabel" hidden="true">Enter Tracking No.:</label><br />
+    <input id="newEventInput" type="text" hidden="true" />
+
+    <video id="video" autoplay hidden="true"></video>
+    <input type="file" id="videoFile" accept="image/*" name="file" hidden="true">
+
+    <button id="log" class="logButton">Log New Event</button>
+    <button id="next" class="nextButton" hidden="true">Next</button>
+    <button id="snap" class="snapButton" hidden="true">Snap</button>
+
+    <img id="screenshot1" class="screenshot" />
+    <img id="screenshot2" class="screenshot" />
+    <canvas id="canvas" width="600" height="600"></canvas>
+    <br />
+
+    <label id="messageLabel" hidden="true">Obtaining geolocation</label>
+    <input id="addressInput" type="text" hidden="true" />
+    <hr />
+
+    <label id="commentLabel" hidden="true">Comments</label>
+    <textarea id="textArea" rows="3" cols="80" hidden="true"></textarea>
+
+    <script>
+        canvas.style.display = "none";
+
+        window.addEventListener("DOMContentLoaded", function () {
+            var imgIndex = 0,
+                image1 = document.getElementById("screenshot1"),
+                image2 = document.getElementById("screenshot2"),
+                images = document.getElementsByClassName("screenshot"),
+                logButton = document.getElementById("log"),
+                nextButton = document.getElementById("next"),
+                snapButton = document.getElementById("snap"),
+                newEventLabel = document.getElementById("newEventLabel"),
+                newEventInput = document.querySelector("#newEventInput"),
+                videoFile = document.querySelector("#videoFile"),
+                addressInput = document.querySelector("#addressInput"),
+                messageLabel = document.getElementById("messageLabel"),
+                canvas = document.getElementById("canvas"),
+                context = canvas.getContext("2d"),
+                video = document.getElementById("video"),
+                videoObj = { "video": true },
+                errBack = function (error) {
+                    console.log("Video capture error: ", error.code);
+                };
+
+            setVideoProperties();
+            
+            logButton.addEventListener("click", function () {
+                newEventLabel.hidden = false;
+                newEventInput.hidden = false;
+                nextButton.hidden = false;
+                logButton.hidden = true;
+            })
+
+            nextButton.addEventListener("click", function () {
+
+                newEventLabel.hidden = true;
+                newEventInput.hidden = true;
+                nextButton.hidden = true;
+
+                if (navigator.getUserMedia) { // Standard
+                    navigator.getUserMedia(videoObj, function (stream) {
+                        video.hidden = false;
+                        snapButton.hidden = false;
+                        video.src = stream;
+                        video.play();
+                    }, errBack);
+                } else if (navigator.webkitGetUserMedia) { // WebKit-prefixed
+                    navigator.webkitGetUserMedia(videoObj, function (stream) {
+                        video.hidden = false;
+                        snapButton.hidden = false;
+                        video.src = window.webkitURL.createObjectURL(stream);
+                        video.play();
+                    }, errBack);
+                } else if (navigator.mozGetUserMedia) { // WebKit-prefixed
+                    navigator.mozGetUserMedia(videoObj, function (stream) {
+                        video.hidden = false;
+                        snapButton.hidden = false;
+                        video.src = window.URL.createObjectURL(stream);
+                        video.play();
+                    }, errBack);
+                } else {
+                    useFileInput();
+                    getGeolocation();
+                }
+            });
+
+            
+            snapButton.addEventListener("click", function () {
+
+                getGeolocation();
+
+                context.canvas.width = video.videoWidth;
+                context.canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+
+                images[imgIndex].src = canvas.toDataURL('image/jpeg');
+
+                imgIndex++;
+                if (imgIndex >= images.length)
+                    imgIndex = 0;
+                                
+            });
+
+            function useFileInput() {
+                videoFile.hidden = false;
+
+                if (videoFile && image1) {
+                    videoFile.onchange = function (event) {
+                        var files = event.target.files,
+                            file;
+                        if (files && files.length > 0) {
+                            file = files[0];
+                            try {
+                                image1.hidden = false;
+                                var fileReader = new FileReader();
+                                fileReader.onload = function (event) {
+                                    image1.src = event.target.result;
+                                    image1.height = 500;
+                                };
+                                fileReader.readAsDataURL(file);
+                                videoFile.hidden = true;
+                            }
+                            catch (e) {
+                                var error = document.querySelector("#error");
+                                if (error) {
+                                    error.innerHTML = "FileReader is not supported";
+                                }
+                            }
+                        }
+                    };
+                }
+            }
+
+            function getGeolocation() {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(success, error);
+                } else {
+                    error('Location not supported');
+                }
+
+                messageLabel.hidden = false;
+            }
+
+            function success(position) {
+                messageLabel.hidden = false;
+                messageLabel.innerHTML = "LAT: " + position.coords.latitude + ", LONG: " + position.coords.longitude + ", Accuracy: " + position.coords.accuracy.toFixed(2) + "m";
+            }
+
+            function error(msg) {
+                messageLabel.hidden = false;
+                messageLabel.innerHTML = typeof msg == 'string' ? msg : "Failed to get geolocation. Enter address:";
+                addressInput.hidden = false;
+            }
+
+            function setVideoProperties() {
+                if (!(typeof MediaStreamTrack === 'undefined') && MediaStreamTrack.getSources) {
+                    MediaStreamTrack.getSources(function (sourceInfos) {
+                        // checking for multiple cameras and selecting back cam
+                        var videoSource = null;
+                        for (var i = 0; i < sourceInfos.length ; ++i) {
+                            var sourceInfo = sourceInfos[i];
+
+                            if (sourceInfo.kind === 'video' && sourceInfo.facing === 'environment')
+                                videoSource = sourceInfo.id;
+                        }
+
+                        // setting video constraints
+                        videoObj = {
+                            video: {
+                                optional: [{ sourceId: videoSource }],
+                            }
+                        }
+                    });
+                }
+            }
+
+        }, false);
+
+    </script>
+
+</body>
+</html>
